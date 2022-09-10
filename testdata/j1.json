@@ -1,0 +1,24 @@
+{
+	"id": "0001",
+	"type": "donut",
+	"name": "Cake",
+	"arr" : [1, 2, 3],
+	"image":
+		{
+			"url": "images/0001.jpg",
+			"width": 200,
+			"caption": {
+				"text": "image",
+				"width": 123,
+				"height": 321
+			},
+			"height": 200
+		},
+	"thumbnail":
+		{
+			"url": "images/thumbnails/0001.jpg",
+			"width": 32,
+			"height": 32
+		}
+}
+

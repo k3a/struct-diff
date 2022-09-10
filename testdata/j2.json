@@ -1,0 +1,30 @@
+{
+	"id": "0001",
+	"arr" : [1, {"obj": "ok", "secondkey": 123}, 3, 4],
+	"name": "Donut",
+	"image":
+		{
+			"url": "images/0001.jpg",
+			"width": 200,
+			"caption": {
+				"text": "image",
+				"width": 321,
+				"height": {
+					"value": 642,
+					"units": "mm"
+				}
+			},
+			"height": 200
+		},
+	"thumbnail": {
+			"url": "images/thumbnails/0001.jpg",
+			"width": 64,
+			"height": 32,
+			"extra" : {
+				"price": 111,
+				"sizes": ["L", "XL"]
+			}
+
+		}
+}
+
