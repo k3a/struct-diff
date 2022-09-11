@@ -9,5 +9,5 @@ __copyright__ = """
 """
 __credits__ = ["Matěj Cepl", "Mario Hros"]
 
-from comparator import Comparator
-from formatters.yaml import YAMLFormatter, YAMLFormatterError
+from .comparator import Comparator
+from .formatters import *

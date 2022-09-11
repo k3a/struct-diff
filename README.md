@@ -135,7 +135,6 @@ and it is also able to generate a YAML representation of changes `./struct_diff.
 ## Things to do
 
 - add unit tests
-- make it a proper PyPI package
 - create a JSON formatter similar to [json-diff](https://github.com/andreyvit/json-diff) JS library
 - add a new formatter or extend existing ones to generate colored CLI output
 
@@ -149,4 +148,3 @@ You are welcome to implement stuff from `Things to do` or more and submit pull r
 Based on unmaintained [json_diff](https://gitlab.com/mcepl/json_diff/-/tree/master/) MIT python code.
 I probably wouldn't bother writing it all from scratch so thanks for the original work.
 And because the original work was MIT, I am releasing my additions here as MIT as well. :)
-

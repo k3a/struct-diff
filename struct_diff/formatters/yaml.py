@@ -4,8 +4,8 @@ try:
 except:
     pass
 
-from util import is_scalar, prefix_lines
-from comparator import changedict_vals, is_changedict, is_changedict_for_list, \
+from ..util import is_scalar, prefix_lines
+from ..comparator import changedict_vals, is_changedict, is_changedict_for_list, \
     TYPE_OBJECT, TYPE_ARRAY, KEY_LENGTH
 
 class YAMLFormatterError(ValueError):
