@@ -1,4 +1,4 @@
-# struct-diff
+# struct_diff
 
 Copares two objects and produces a dict describing changes.
 Ideal for comparing two JSON or YAML objects and generating a structural diff.
@@ -135,12 +135,13 @@ and it is also able to generate a YAML representation of changes `./struct_diff.
 ## Things to do
 
 - add unit tests
-- create JSON formatter similar to [json-diff](https://github.com/andreyvit/json-diff) JS library
-- add a formatter or extend existing ones to generate colored output
+- make it a proper PyPI package
+- create a JSON formatter similar to [json-diff](https://github.com/andreyvit/json-diff) JS library
+- add a new formatter or extend existing ones to generate colored CLI output
 
 ## Contributing
 
-It is currently good enough for me so I don't plan much more time on it.
+It is currently good enough for me so I don't intend to spend much more time on it.
 You are welcome to implement stuff from `Things to do` or more and submit pull requests.
 
 ## Credits
@@ -148,3 +149,4 @@ You are welcome to implement stuff from `Things to do` or more and submit pull r
 Based on unmaintained [json_diff](https://gitlab.com/mcepl/json_diff/-/tree/master/) MIT python code.
 I probably wouldn't bother writing it all from scratch so thanks for the original work.
 And because the original work was MIT, I am releasing my additions here as MIT as well. :)
+
