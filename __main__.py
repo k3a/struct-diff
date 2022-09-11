@@ -14,8 +14,8 @@ except ImportError:
 import sys
 from optparse import OptionParser
 
-from .comparator import Comparator
-from .yaml import YAMLFormatter
+from comparator import Comparator
+from formatters.yaml import YAMLFormatter
 
 def main(argv=None):
     """Main function, to process command line arguments etc."""
