@@ -3,9 +3,10 @@ try:
     import yaml
 except:
     pass
+import difflib
 
 from ..util import is_scalar, prefix_lines
-from ..comparator import changedict_vals, is_changedict, is_changedict_for_list, \
+from ..comparator import changedict_vals, is_changedict, \
     TYPE_OBJECT, TYPE_ARRAY, KEY_LENGTH
 
 class YAMLFormatterError(ValueError):
@@ -25,6 +26,22 @@ class YAMLFormatter(object):
     def __str__(self):
         return self._string_from_chdict(self.chdict)
 
+    def _text_diff(self, prev_val, cur_val, depth=0):
+        """Creates a unified diff and returns its string representation"""
+        prev_lines = (prev_val+'\n').splitlines(keepends=True)
+        cur_lines = (cur_val+'\n').splitlines(keepends=True)
+        d = list(difflib.unified_diff(prev_lines, cur_lines, n=1))
+        if len(d) > 3:
+            # strip header
+            d = d[3:]
+        if depth>0:
+            # append depth
+            for n in range(len(d)):
+                l = d[n]
+                if len(l) > 0:
+                    d[n] = l[0] + ' '*depth + l[1:]
+        return ''.join(d)[:-1]
+
     def _string_value(self, val, prefix='', prefix_first_line=False, newline_if_nonscalar=False) -> str:
         """
         String representation a leaf value with optional prefix.
@@ -34,11 +51,20 @@ class YAMLFormatter(object):
         case prefix_first_line parameter is ignored.
         """
         if is_scalar(val):
-            return (prefix if prefix_first_line else '') + str(val)
+            val = str(val).strip()
+            out = ''
+            extra_prefix = ''
+            if '\n' in val:
+                extra_prefix = '  '
+                if prefix_first_line:
+                    out += prefix
+                out += '|-'
+                prefix_first_line = False
+            out += prefix_lines(str(val), prefix+extra_prefix, prefix_first_line=prefix_first_line)
         else:
             out = '\n' if newline_if_nonscalar else ''
             out += prefix_lines(yaml.safe_dump(val), prefix, prefix_first_line=prefix_first_line or newline_if_nonscalar)
-            return out
+        return out
 
     def _string_dict(self, chdict: dict, depth: int, prefix_first_line=True) -> str:
         """
@@ -74,8 +100,13 @@ class YAMLFormatter(object):
                 out += self._string_from_chdict(upd[key], depth+1, True)
             else:
                 # this is an actual change of a value set to the key
-                out += format_key_line('-', key, orig[key])
-                out += format_key_line('+', key, upd[key])
+                if isinstance(orig[key], str) and isinstance(upd[key], str) and '\n' in upd[key]:
+                    # append to do unified text diff
+                    out += self._text_diff(orig[key], upd[key], depth)
+                else:
+                    # remove old and add new
+                    out += format_key_line('-', key, orig[key])
+                    out += format_key_line('+', key, upd[key])
 
         return out
 
@@ -144,15 +175,20 @@ class YAMLFormatter(object):
         if len(rem) > 0 or len(app) > 0 or len(upd) > 0:
             if typ == TYPE_OBJECT:
                 out += self._string_dict(chdict, depth, prefix_first_line)
-            elif typ == TYPE_ARRAY or is_changedict_for_list(chdict):
+            elif typ == TYPE_ARRAY:
                 out += self._string_list(chdict, depth, prefix_first_line)
             else:
                 out = ''
-                for k in rem:
-                    out += self._string_value(rem[k], prefix='-' + ' '*depth, prefix_first_line=True) + '\n'
-                for k in app:
-                    out += self._string_value(app[k], prefix='+' + ' '*depth, prefix_first_line=True) + '\n'
-                if len(upd) > 0:
-                    raise YAMLFormatterError('unexpected _update ' + str(upd))
+                if len(rem) == 1 and len(app) == 1 and '' in app and isinstance(app[''], str) and '\n' in app['']:
+                    # append to do unified text diff
+                    out += self._text_diff(rem[''], app[''], depth)
+                else:
+                    # do removal and adds of the full string
+                    for k in rem:
+                        out += self._string_value(rem[k], prefix='-' + ' '*depth, prefix_first_line=True) + '\n'
+                    for k in app:
+                        out += self._string_value(app[k], prefix='+' + ' '*depth, prefix_first_line=True) + '\n'
+                    if len(upd) > 0:
+                        raise YAMLFormatterError('unexpected _update ' + str(upd))
 
         return out if depth > 0 else out.rstrip()

@@ -13,25 +13,6 @@ def is_changedict(d: dict) -> bool:
     """
     return isinstance(d, dict) and (KEY_REMOVE in d or KEY_APPEND in d or KEY_UPDATE in d or KEY_ORIGINAL in d)
 
-def is_changedict_for_list(inp_dict: dict) -> bool:
-    """
-    Returns True if inp_dict is a changedict for a list (array) and contains only numeric keys.
-    """
-    if not is_changedict(inp_dict):
-        return False
-    # keys must be convertible to int
-    def check_keys(d, key):
-        if d is None:
-            return True
-        if key not in d:
-            return True
-        d = d[key]
-        for k in d:
-            if not isinstance(k, int):
-                return False
-        return True
-    return check_keys(inp_dict, KEY_REMOVE) and check_keys(inp_dict, KEY_APPEND) and check_keys(inp_dict, KEY_UPDATE)
-
 def changedict_vals(chdict: dict) -> tuple[str, dict, dict, dict, dict]:
     """
     Extracts (type, remove, append, upgrade, original) parts from the changedict.

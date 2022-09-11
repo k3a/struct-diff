@@ -54,9 +54,20 @@ def main(argv=None):
         parser.error("Two positional arguments, " +
                      "paths to the old and new JSON file are required")
 
-    with open(args[0]) as old_file, open(args[1]) as new_file: 
-        obj1 = json.load(old_file)
-        obj2 = json.load(new_file)
+    with open(args[0]) as old_file, open(args[1]) as new_file:
+        try:
+            obj1 = json.load(old_file)
+        except Exception as e:
+            print(f"error opening file {args[0]} as JSON: {e}", file=sys.stderr)
+            old_file.seek(0, 0)
+            obj1 = old_file.read()
+        
+        try:
+            obj2 = json.load(new_file)
+        except Exception as e:
+            print(f"error opening file {args[1]} as JSON: {e}", file=sys.stderr)
+            new_file.seek(0, 0)
+            obj2 = new_file.read()
 
         diff = Comparator(obj1, obj2, options)
         diff_res = diff.compare()
