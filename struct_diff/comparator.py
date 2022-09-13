@@ -1,232 +1,277 @@
-KEY_TYPE        = '__type'
-KEY_REMOVE      = '__remove'
-KEY_APPEND      = '__append'
-KEY_UPDATE      = '__update'
-KEY_ORIGINAL    = '__original'
-KEY_LENGTH      = '__length'
-TYPE_OBJECT = 'object'
-TYPE_ARRAY = 'array'
+from difflib import SequenceMatcher
+import json
+from enum import Enum
 
-def is_changedict(d: dict) -> bool:
-    """
-    Returns True if d is a dict containing _remove, _append or _update keys
-    """
-    return isinstance(d, dict) and (KEY_REMOVE in d or KEY_APPEND in d or KEY_UPDATE in d or KEY_ORIGINAL in d)
+from .util import _extend_typeof, _round_obj, _get_opt
 
-def changedict_vals(chdict: dict) -> tuple[str, dict, dict, dict, dict]:
-    """
-    Extracts (type, remove, append, upgrade, original) parts from the changedict.
-    """
-    typ = ''
-    rem = {}
-    app = {}
-    upd = {}
-    orig = {}
+class OP:
+    NONE = ' '
+    ADD = '+'
+    REMOVE = '-'
+    MODIFY = '~'
 
-    if KEY_TYPE in chdict:
-        typ = chdict[KEY_TYPE]
-    if KEY_REMOVE in chdict:
-        rem = chdict[KEY_REMOVE]
-    if KEY_APPEND in chdict:
-        app = chdict[KEY_APPEND]
-    if KEY_UPDATE in chdict:
-        upd = chdict[KEY_UPDATE]
-    if KEY_ORIGINAL in chdict:
-        orig = chdict[KEY_ORIGINAL]
-
-    return (typ, rem, app, upd, orig)
+class ParserError(ValueError):
+    pass
 
 class Comparator(object):
-    """
-    Main workhorse, the comparator producing changedicts
-    """
-    def __init__(self, obj1, obj2, opts=None):
-        self.obj1 = obj1
-        self.obj2 = obj2
+    def __init__(self, opts=None):
+        self.opts = opts
 
-        self.excluded_attributes = []
-        self.included_attributes = []
-        self.ignore_appended = False
-        if opts:
-            self.excluded_attributes = opts.exclude or []
-            self.included_attributes = opts.include or []
-            self.ignore_appended = opts.ignore_append or False
+    def _get_opt(self, key, default=False):
+        return _get_opt(self.opts, key, default)
 
-    def _is_incex_key(self, key, value):
-        """Is this key excluded or not among included ones? If yes, it should
-        be ignored."""
-        key_out = ((self.included_attributes and
-                   (key not in self.included_attributes)) or
-                   (key in self.excluded_attributes))
-        value_out = True
-        if isinstance(value, dict):
-            for change_key in value:
-                if isinstance(value[change_key], dict):
-                    for key in value[change_key]:
-                        if ((self.included_attributes and
-                             (key in self.included_attributes)) or
-                           (key not in self.excluded_attributes)):
-                                value_out = False
-        return key_out and value_out
+    def __is_scalar(self, obj):
+        return not isinstance(obj, (list, dict)) or obj is None
 
-    def _filter_results(self, result):
-        """Whole -i or -x functionality. Rather than complicate logic while
-        going through the object’s tree we filter the result of plain
-        comparison.
+    def object_diff(self, obj1, obj2):
+        """ Compare two dicts and return {score, equal, result} dict """
+        result = {}
+        score = 0
+        equal = True
 
-        Also clear out unused keys in result"""
-        out_result = {}
-        for change_type in result:
-            if change_type == KEY_TYPE:
-                # skip internal key
-                continue
-            temp_dict = {}
-            for key in result[change_type]:
-                if self.ignore_appended and (change_type == KEY_APPEND):
+        for key, value in obj1.items():
+            if not self._get_opt('output_new_only'):
+                postfix = '__deleted'
+            
+                if key not in obj2:
+                    result[f'{key}{postfix}'] = value
+                    score -= 30
+                    equal = False
+
+        for key, value in obj2.items():
+            postfix = '__added' if not self._get_opt('output_new_only') else ''
+
+            if key not in obj1:
+                result[f'{key}{postfix}'] = value
+                score -= 30
+                equal = False
+
+        for key, value1 in obj1.items():
+            if key in obj2:
+                score += 20
+                value2 = obj2[key]
+                change = self.diff(value1, value2)
+                if not change['equal']:
+                    result[key] = change['result']
+                    equal = False
+                elif self._get_opt('full') or key in self._get_opt('output_keys', []):
+                    result[key] = value1
+                    score += min(20, max(-10, change['score'] / 5)) # BATMAN!
+
+        if equal:
+            score = 100 * max(len(obj1), 0.5)
+            if not self._get_opt('full'):
+                result = None
+        else:
+            score = max(0, score)   
+        return { 'score': score, 'result': result, 'equal': equal }
+
+    def _find_matching_object(self, item, index, fuzzy_originals):
+        best_match = None
+
+        for key, it in fuzzy_originals.items():
+            if key != '__next':
+                candidate = it['item']
+                match_index = it['index']
+                index_distance = abs(match_index - index)
+                if _extend_typeof(item) == _extend_typeof(candidate):
+                    score = self.diff(item, candidate)['score']
+                    if not best_match or \
+                        score > best_match['score'] or \
+                        (score == best_match['score'] and
+                        index_distance < best_match['index_distance']):
+                            best_match = { 'score': score, 'key': key, 'index_distance': index_distance }
+
+        return best_match
+
+    def _scalarize(self, array, originals, fuzzy_originals=False):
+        fuzzy_matches = {}
+        if fuzzy_originals:
+            # Find best fuzzy match for each object in the array
+            key_scores = {}
+            for index in range(0, len(array)):
+                item = array[index]
+                if self.__is_scalar(item):
                     continue
-                if not self._is_incex_key(key, result[change_type][key]):
-                    temp_dict[key] = result[change_type][key]
-            if len(temp_dict) > 0:
-                out_result[change_type] = temp_dict
-                # copy KEY_TYPE over
-                out_result[KEY_TYPE] = result[KEY_TYPE]
-
-        return out_result
-
-    def _compare_elements(self, old, new):
-        """Unify decision making on the leaf node level."""
-        res = None
-        # We want to go through the tree post-order
-        if isinstance(old, dict):
-            res_dict = self._compare_dicts(old, new)
-            if (len(res_dict) > 0):
-                res = res_dict
-        # Now we are on the same level
-        # different types, new value is new
-        elif (type(old) != type(new)):
-            res = new
-        # recursive arrays
-        # we can be sure now, that both new and old are
-        # of the same type
-        elif (isinstance(old, list)):
-            res_arr = self._compare_arrays(old, new)
-            if (len(res_arr) > 0):
-                res = res_arr
-        # the only thing remaining are scalars
-        else:
-            scalar_diff = self._compare_scalars_return_new(old, new)
-            if scalar_diff is not None:
-                res = scalar_diff
-
-        return res
-
-    def _compare_scalars_return_new(self, old, new):
-        """
-        Compare scalar values and return the new value if they differ.
-        Returns None if old and new are the same.
-        """
-        if old != new:
-            return new
-        else:
-            return None
-
-    def _compare_arrays(self, old_arr, new_arr):
-        """
-        Produce changedict by comparing two list (array) objects
-        """
-        inters = min(len(old_arr), len(new_arr))  # this is the smaller length
-
-        result = {
-            KEY_TYPE: TYPE_ARRAY,
-            KEY_APPEND: {},
-            KEY_REMOVE: {},
-            KEY_UPDATE: {},
-            KEY_ORIGINAL: {}
-        }
-        for idx in range(inters):
-            res = self._compare_elements(old_arr[idx], new_arr[idx])
-            if res is not None:
-                result[KEY_UPDATE][idx] = res
-                result[KEY_ORIGINAL][idx] = old_arr[idx]
-
-        # the rest of the larger array
-        if (inters == len(old_arr)):
-            for idx in range(inters, len(new_arr)):
-                result[KEY_APPEND][idx] = new_arr[idx]
-        else:
-            for idx in range(inters, len(old_arr)):
-                result[KEY_REMOVE][idx] = old_arr[idx]
-
-        # Clear out unused keys in result
-        out_result = {}
-        for key in result:
-            if len(result[key]) > 0:
-                out_result[key] = result[key]
-
-        if len(out_result) > 0:
-            # copy length over
-            if KEY_ORIGINAL not in out_result:
-                out_result[KEY_ORIGINAL] = {}
-            out_result[KEY_ORIGINAL][KEY_LENGTH] = len(old_arr)
-
-        return self._filter_results(result)
-
-    def _compare_dicts(self, old_obj=None, new_obj=None):
-        """
-        Produce changedict by comparing two dict objects
-        """
-        old_keys = set()
-        new_keys = set()
-        if old_obj and len(old_obj) > 0:
-            old_keys = set(old_obj.keys())
-        if new_obj and len(new_obj) > 0:
-            new_keys = set(new_obj.keys())
-
-        keys = old_keys | new_keys
-
-        result = {
-            KEY_TYPE: TYPE_OBJECT,
-            KEY_APPEND: {},
-            KEY_REMOVE: {},
-            KEY_UPDATE: {},
-            KEY_ORIGINAL: {},
-        }
-        for name in keys:
-            # old_obj is missing
-            if name not in old_obj:
-                result[KEY_APPEND][name] = new_obj[name]
-            # new_obj is missing
-            elif name not in new_obj:
-                result[KEY_REMOVE][name] = old_obj[name]
+                best_match = self._find_matching_object(item, index, fuzzy_originals)
+                best_match_key = best_match['key'] if best_match else None
+                if best_match and (best_match_key not in key_scores or best_match['score'] > key_scores[best_match_key]['score']):
+                    key_scores[best_match_key] = { 'score': best_match['score'], 'index': index }
+            for key, match in key_scores.items():
+                fuzzy_matches[match['index']] = key
+    
+        result = []
+        for index in range(0, len(array)):
+            item = array[index]
+            if self.__is_scalar(item):
+                result.append(item)
             else:
-                res = self._compare_elements(old_obj[name], new_obj[name])
-                if res is not None:
-                    result[KEY_UPDATE][name] = res
-                    result[KEY_ORIGINAL][name] = old_obj[name]
+                def incr_return_old(d, key):
+                    old = d[key]
+                    d[key] = old+1
+                    return old
+                key = index in fuzzy_matches and fuzzy_matches[index] or '__$!SCALAR' + str(incr_return_old(originals, '__next'))
+                originals[key] = { 'item': item, 'index': index }
+                result.append(key)
+        return result
 
-        return self._filter_results(result)
+    def _is_scalarized (self, item, originals):
+        return isinstance(item, str) and item in originals
 
-    def compare(self, old_obj=None, new_obj=None):
-        """
-        Produces changedoct by comparing two parameters old_obj and new_obj.
-        Types of parameters may be different.
-        If old_obj or new_obj is None, parameters taken from the constructor will be used.
-        """
-        if not old_obj and hasattr(self, "obj1"):
-            old_obj = self.obj1
-        if not new_obj and hasattr(self, "obj2"):
-            new_obj = self.obj2
-
-        same_type = type(old_obj) == type(new_obj)
-
-        if same_type and isinstance(old_obj, dict):
-            return self._compare_dicts(old_obj, new_obj)
-        elif same_type and isinstance(old_obj, list):
-            return self._compare_arrays(old_obj, new_obj)
-        elif old_obj != new_obj:
-            # different types betwen old and new, a scalar or unusual type 
-            # remove the old oone and add a new one
-            return {KEY_REMOVE: {'': old_obj}, KEY_APPEND: {'': new_obj}}
+    def _descalarize(self, item, originals):
+        if self._is_scalarized(item, originals):
+            return originals[item]['item']
         else:
-            # mo change
-            return '{}'
+            return item
+
+    def array_diff(self, obj1, obj2):
+        """ Compare two arrays and return {score, equal, result} dict """
+        originals1 = { '__next': 1 }
+        seq1 = self._scalarize(obj1, originals1)
+        originals2 = { '__next': originals1['__next'] }
+        seq2 = self._scalarize(obj2, originals2, originals1)
+    
+        if self._get_opt('sort'):
+            def mixd(num):
+                try:
+                    el = int(num)
+                    return (0, el)
+                except:
+                    return (1, num)
+            # json_diff in JS sorts alphanumerically (key=str)
+            # it should probably use a mixed method (key=mixd) instead
+            seq1.sort(key=str)
+            seq2.sort(key=str)
+
+        opcodes = SequenceMatcher(None, seq1, seq2).get_opcodes()
+    
+        result = []
+        score = 0
+        equal = True
+    
+        for op, i1, i2, j1, j2 in opcodes:
+            i, j = (0, 0)
+            asc, end = (0, 0)
+            asc1, end1 = (0, 0)
+            asc2, end2 = (0, 0)
+            if not (op == 'equal' or (self._get_opt('keys_only') and op == 'replace')):
+                equal = False
+        
+            if op == 'equal':
+                end = i2
+                asc = i1 <= end
+                for i in range(i1, end, 1 if asc else -1):
+                    item = seq1[i]
+                    if self._is_scalarized(item, originals1):
+                        if not self._is_scalarized(item, originals2):
+                            raise ParserError(f'internal bug: is_scalarized(item, originals1) != is_scalarized(item, originals2) for item {json.dumps(item, indent=2)}')
+                        item1 = self._descalarize(item, originals1)
+                        item2 = self._descalarize(item, originals2)
+                        change = self.diff(item1, item2)
+                        if not change['equal']:
+                            result.append([OP.MODIFY, change['result']])
+                            equal = False
+                        else:
+                            if self._get_opt('full') or self._get_opt('keep_unchanged_values'):
+                                result.append([OP.NONE, item1])
+                            else:
+                                result.append([OP.NONE])
+                    else:
+                        if self._get_opt('full') or self._get_opt('keep_unchanged_values'):
+                            result.append([OP.NONE, item])
+                        else:
+                            result.append([OP.NONE])
+                    score += 10
+            elif op == 'delete':
+                end1 = i2
+                asc1 = i1 <= end1
+                for i in range(i1, end1, 1 if asc1 else -1):
+                    result.append([OP.REMOVE, self._descalarize(seq1[i], originals1)])
+                    score -= 5
+            elif op == 'insert':
+                end2 = j2
+                asc2 = j1 <= end2
+                for j in range(j1, end2, 1 if asc2 else -1):
+                    result.append([OP.ADD, self._descalarize(seq2[j], originals2)])
+                    score -= 5
+            elif op == 'replace':
+                if not self._get_opt('keys_only'):
+                    asc3, end3 = (0, 0)
+                    asc4, end4 = (0, 0)
+                    end3 = i2
+                    asc3 = i1 <= end3
+                    for i in range(i1, end3, 1 if asc3 else -1):
+                        result.append([OP.REMOVE, self._descalarize(seq1[i], originals1)])
+                        score -= 5
+                    end4 = j2
+                    asc4 = j1 <= end4
+                    for j in range(i1, end4, 1 if asc4 else -1):
+                        result.append([OP.ADD, self._descalarize(seq2[j], originals2)])
+                        score -= 5
+                else:
+                    asc5, end5 = (0, 0)
+                    end5 = i2
+                    asc5 = i1 <= end5
+                    for i in range(i1, end5, 1 if asc5 else -1):
+                        change = self.diff(
+                            self._descalarize(seq1[i], originals1),
+                            self._descalarize(seq2[i - i1 + j1], originals2)
+                        )
+                        if not change['equal']:
+                            result.append([OP.MODIFY, change['result']])
+                            equal = False
+                        else:
+                            result.append([OP.NONE])
+        
+        if equal or len(opcodes) == 0:
+            if not self._get_opt('full'):
+                result = None
+            else:
+                result = obj1
+            score = 100
+        else:
+          score = max(0, score)
+    
+        return { 'score': score, 'result': result, 'equal': equal }
+
+    def diff(self, obj1, obj2):
+        """ Compare two objects of any type and return a dict with differences """
+        type1 = _extend_typeof(obj1)
+        type2 = _extend_typeof(obj2)
+    
+        if type1 == type2:
+            if type1 == 'object':
+                return self.object_diff(obj1, obj2)
+            elif type1 == 'array':
+                return self.array_diff(obj1, obj2)
+    
+        # Compare primitives or complex objects of different types
+        score = 100
+        result = obj1
+        equal = False
+        if not self._get_opt('keys_only', False):
+            equal = obj1 == obj2
+            if not equal:
+                score = 0
+        
+                if self._get_opt('output_new_only', False):
+                    result = obj2
+                else:
+                    result = { '__old': obj1, '__new': obj2 }
+            elif not self._get_opt('full', False):
+                result = None
+        else:
+            equal = True
+            result = None
+    
+        return { 'score': score, 'result': result, 'equal': equal }
+
+def diff(obj1, obj2, opts = None):
+    """
+    Compare two objects and return a dict with differences
+    """
+    p = _get_opt(opts, 'precision', None)
+    if p is not None:
+        obj1 = _round_obj(obj1, p)
+        obj2 = _round_obj(obj2, p)
+    return Comparator(opts).diff(obj1, obj2)['result']

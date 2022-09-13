@@ -4,7 +4,7 @@ version_string = __import__('struct_diff').__version__
 
 setup(
     name='struct-diff',
-    version='2.0.0',
+    version=version_string,
     description='Structural comparison of two objects.',
     url='https://github.com/k3a/struct_diff',
     author='K3A',

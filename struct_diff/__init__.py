@@ -1,13 +1,14 @@
 """
 Structural comparison of two objects.
+Based on json-diff javascript package (https://github.com/andreyvit/json-diff)
 """
 
-__version__ = "2.0.0"
+__version__ = "0.9.0"
 __copyright__ = """
-    Copyright (c) 2011 Red Hat Corp. (Matěj Cepl)
+    Copyright (c) 2015 Andrey Tarantsov
     Copyright (c) 2022 Mario Hros (K3A.me)
 """
-__credits__ = ["Matěj Cepl", "Mario Hros"]
+__credits__ = ["Andrey Tarantsov", "Mario Hros"]
 
-from .comparator import Comparator
+from .comparator import Comparator, diff
 from .formatters import *

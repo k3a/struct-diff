@@ -1,86 +1,66 @@
 #!/usr/bin/env python3
-"""
-Structural comparison of two objects.
 
-Copyright (c) 2011 Red Hat Corp. (Matěj Cepl)
-Copyright (c) 2022 Mario Hros (K3A.me)
-
-License: MIT
-"""
-try:
-    import json
-except ImportError:
-    import simplejson as json
+import json
 import sys
-from optparse import OptionParser
+from argparse import ArgumentParser
 
-from .comparator import Comparator
-from .formatters import YAMLFormatter
+from .comparator import diff
+from .formatters import colorize, YAMLFormatter
 
 def main(argv=None):
-    """Main function, to process command line arguments etc."""
+    parser = ArgumentParser(prog='struct_diff')
+    parser.add_argument('old', help='original file')
+    parser.add_argument('new', help='new file')
+    parser.add_argument('-C', dest='color', default=None, action='store_true', help='force colorize the output')
+    parser.add_argument('--no-color', action='store_true', help='do not colorize the output')
+    parser.add_argument('-j', '--raw-json', action='store_true', help='display raw JSON encoding of the diff')
+    parser.add_argument('-Y', '--yaml', action='store_true', help='output diff as YAML')
+    parser.add_argument('-f', '--full', action='store_true', help='include the equal sections of the document, not just the deltas')
+    parser.add_argument('--max-elisions', type=int, help='max number of ...\'s to show in a row in "deltas" mode (before collapsing them) #var(maxElisions)')
+    parser.add_argument('-o', '--output-keys', metavar='KEY', nargs='+', help='always print this comma separated keys, with their value, if they are part of an object with any diff')
+    parser.add_argument('-n', '--output-new-only', action='store_true', help='output only the updated and new key/value pairs (without marking them as such). If you need only the diffs from the old file, just exchange the first and second json')
+    parser.add_argument('-s', '--sort', action='store_true', help='sort primitive values in arrays before comparing')
+    parser.add_argument('-k', '--keys-only', action='store_true', help='compare only the keys, ignore the differences in values')
+    parser.add_argument('-K', '--keep-unchanged-values', action='store_true', help='instead of omitting values that are equal, output them as they are')
+    parser.add_argument('-p', '--precision', metavar='DECIMALS', type=int, help='round all floating point numbers to this number of decimal places prior to comparison')
+
     sys_args = argv if argv is not None else sys.argv[:]
-    usage = "usage: %prog [options] old.json new.json"
-    parser = OptionParser(prog="struct_diff", usage=usage)
-    parser.add_option("-x", "--exclude",
-                      action="append", dest="exclude", metavar="ATTR",
-                      default=[],
-                      help="attributes which should be ignored when comparing")
-    parser.add_option("-i", "--include",
-                      action="append", dest="include", metavar="ATTR",
-                      default=[],
-                      help="attributes which should be exclusively " +
-                      "used when comparing")
-    parser.add_option("-o", "--output",
-                      action="append", dest="output", metavar="FILE",
-                      default=[],
-                      help="name of the output file (default is stdout)")
-    parser.add_option("-a", "--ignore-append",
-                      action="store_true", dest="ignore_append",
-                      metavar="BOOL", default=False,
-                      help="ignore appended keys")
-    parser.add_option("-Y", "--yaml",
-                      action="store_true", dest="yaml",
-                      metavar="BOOL", default=False,
-                      help="output YAML diff")
-    (options, args) = parser.parse_args(sys_args[1:])
+    args = parser.parse_args()
 
-    if options.output:
-        outf = open(options.output[0], "w")
+    if args.no_color:
+        args.color = False
     else:
-        outf = sys.stdout
+        if args.color is None:
+            args.color = sys.stdout.isatty()
 
-    if len(args) != 2:
-        parser.error("Two positional arguments, " +
-                     "paths to the old and new JSON file are required")
-
-    with open(args[0]) as old_file, open(args[1]) as new_file:
+    with open(args.old) as old_file, open(args.new) as new_file:
         try:
             obj1 = json.load(old_file)
         except Exception as e:
-            print(f"error opening file {args[0]} as JSON: {e}", file=sys.stderr)
+            print(f"error parsing file {args.old} as JSON: {e}", file=sys.stderr)
             old_file.seek(0, 0)
             obj1 = old_file.read()
         
         try:
             obj2 = json.load(new_file)
         except Exception as e:
-            print(f"error opening file {args[1]} as JSON: {e}", file=sys.stderr)
+            print(f"error parsing file {args.old} as JSON: {e}", file=sys.stderr)
             new_file.seek(0, 0)
             obj2 = new_file.read()
 
-        diff = Comparator(obj1, obj2, options)
-        diff_res = diff.compare()
+        diff_res = diff(obj1, obj2, args)
 
-        if options.yaml:
-            outs = str(YAMLFormatter(diff_res))
+        if args.yaml:
+            outs = str(YAMLFormatter(diff_res, args))
+        elif args.raw_json:
+            outs = json.dumps(diff_res, indent=2, ensure_ascii=False)
         else:
-            outs = json.dumps(diff_res, indent=4, ensure_ascii=False)
+            outs = str(colorize(diff_res, args))
 
-        print(outs, end=None if len(outs)>0 else '', file=outf)
-        outf.close()
+        print(outs, end=None if len(outs)>0 else '')
 
-    if len(diff_res) > 0:
+    # return 1 if there were differences
+    if diff_res is not None and len(diff_res) > 0:
         return 1
 
     return 0
