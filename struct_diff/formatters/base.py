@@ -123,6 +123,9 @@ class BaseFormatter(ABC):
         if opts is None:
             opts = self.opts
 
+        if diff is None:
+            return ''
+
         output = []
 
         def output_cb(op, line):
