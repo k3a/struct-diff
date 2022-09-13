@@ -140,8 +140,8 @@ class Comparator(object):
                     return (1, num)
             # json_diff in JS sorts alphanumerically (key=str)
             # it should probably use a mixed method (key=mixd) instead
-            seq1.sort(key=str)
-            seq2.sort(key=str)
+            seq1.sort(key=mixd)
+            seq2.sort(key=mixd)
 
         opcodes = SequenceMatcher(None, seq1, seq2).get_opcodes()
     
