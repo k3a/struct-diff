@@ -193,6 +193,7 @@ You are welcome to implement stuff from `Things to do` or more and submit pull r
 
 ## Change Log
 
+- 0.9.0-2 Multi-line unified diff for strings in YAML mode
 - 0.9.0-1 Implements mixed sorting (numerical sort first, alphanumerical string sort next)
 - 0.9.0 The first complete port of json-diff JS library with all the functionality
 

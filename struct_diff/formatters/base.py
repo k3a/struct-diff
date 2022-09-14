@@ -4,7 +4,7 @@ import json
 from abc import ABC, abstractmethod
 from typing import Any
 
-from ..util import _get_opt, _extend_typeof
+from ..util import _get_opt, _extend_typeof, _is_scalar
 from ..comparator import OP
 
 class FormatterError(ValueError):
@@ -56,8 +56,11 @@ class BaseFormatter(ABC):
         typ = _extend_typeof(diff)
         if typ == 'object':
             if ('__old' in diff) and ('__new' in diff) and (len(diff) == 2):
-                self._output_diff(context, key, diff['__old'], OP.REMOVE, depth)
-                return self._output_diff(context, key, diff['__new'], OP.ADD, depth)
+                if _is_scalar(diff['__old']) and _is_scalar(diff['__new']):
+                    return self._output(context, OP.MODIFY, Part.BODY, key, diff, depth)
+                else:
+                    self._output_diff(context, key, diff['__old'], OP.REMOVE, depth)
+                    return self._output_diff(context, key, diff['__new'], OP.ADD, depth)
             else:
                 self._output(context, op, Part.OBJECT_BEGIN, key, None, depth)
                 for subkey in diff:

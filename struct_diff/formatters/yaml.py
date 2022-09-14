@@ -1,4 +1,5 @@
 import json
+import difflib
 from typing import Any
 
 from ..comparator import OP
@@ -8,8 +9,34 @@ class YAMLFormatter(BaseFormatter):
     def __init__(self, diff = None, opts = None):
         super().__init__(diff, opts)
 
+    def _text_diff(self, prev_val: str, cur_val: str, indent_str: str, depth: int) -> list[str]:
+        """Creates a simplified unified diff and returns its string representation"""
+        prev_lines = (prev_val+'\n').splitlines(keepends=True)
+        cur_lines = (cur_val+'\n').splitlines(keepends=True)
+        d = list(difflib.unified_diff(prev_lines, cur_lines, n=1))
+        if len(d) > 3:
+            # strip header
+            d = d[3:]
+        if depth>0:
+            # append depth
+            for n in range(len(d)):
+                l = d[n]
+                if len(l) > 0:
+                    d[n] = l[0] + indent_str*depth + l[1:]
+        return d[:-1]
+
     def _output(self, context: dict, op: str, part: str, key: str, value: Any, depth: int):
-        indent = '  '*depth
+        if op == OP.MODIFY:
+            old = value['__old']
+            new = value['__new']
+            # split non-multiline modify into two outputs for removal and add
+            if not (isinstance(old, str) and isinstance(new, str) and '\n' in new.rstrip()):
+                self._output(context, OP.REMOVE, part, key, value['__old'], depth)
+                self._output(context, OP.ADD, part, key, value['__new'], depth)
+                return
+
+        indent_str = ' '*self._get_opt('indent_width', 1)
+        indent = indent_str*depth
         prefix = f'{key}: ' if key else ''
 
         stack = context.get('stack', [])
@@ -25,7 +52,8 @@ class YAMLFormatter(BaseFormatter):
             stack.pop()
         elif part == Part.ARRAY_BEGIN:
             stack.append('array')
-            output(op, indent + prefix)
+            if key != '':
+                output(op, indent + prefix)
         elif part == Part.ARRAY_END:
             stack.pop()
         elif part == Part.ELISION:
@@ -39,10 +67,25 @@ class YAMLFormatter(BaseFormatter):
                 if key_in_current_stack_object == 0:
                     prefix = f'- {key}: '
                 else:
-                    indent += '  '
+                    indent += indent_str
             # object key
             if len(stack) > 0 and stack[-1] == 'object' and key != '':
                 key_in_current_stack_object += 1
+
+            if op == OP.MODIFY:
+                # the second check for OP_MODIFY, now it is surely multi-line
+                diff_lines = self._text_diff(old, new, indent_str, depth+1)
+                if depth > 0:
+                    # print YAML multiline string header
+                    output(OP.NONE, indent + prefix + '|-')
+                for dl in diff_lines:
+                    op = OP.NONE
+                    if dl[0] == '+':
+                        op = OP.ADD
+                    elif dl[0] == '-':
+                        op = OP.REMOVE
+                    output(op, dl[1:-1])
+                return
 
             #print(f"op {op} part {part} key {key} value {value} depth {depth}")
             output(op, indent + prefix + json.dumps(value))

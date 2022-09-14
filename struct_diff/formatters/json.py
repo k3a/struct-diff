@@ -9,7 +9,14 @@ class JSONFormatter(BaseFormatter):
         super().__init__(diff, opts)
 
     def _output(self, context: Any, op: str, part: str, key: str, value: Any, depth: int):
-        indent = '  '*depth
+        if op == OP.MODIFY:
+            # split modify into two outputs for removal and add
+            self._output(context, OP.REMOVE, part, key, value['__old'], depth)
+            self._output(context, OP.ADD, part, key, value['__new'], depth)
+            return
+
+        indent_str = ' '*self._get_opt('indent_width', 2)
+        indent = indent_str*depth
         prefix = f'{key}: ' if key else ''
 
         output = context['output']

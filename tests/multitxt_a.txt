@@ -1,0 +1,13 @@
+NixOS is a Linux distribution with its own unique package manager.
+
+The entire operating system, including the kernel, applications, system
+packages and configuration files, are built by the Nix package manager.
+
+The Nix Package Manager uses a declarative system configuration model.
+This means system configuration items are described in a configuration
+file and the OS does everything necessary to make the configuration happen.
+
+This declarative nature allows for reliable system upgrades and makes
+the system reproducible, which means that it is simple to have
+the exact same system with all of the favorite applications
+available on multiple computers.

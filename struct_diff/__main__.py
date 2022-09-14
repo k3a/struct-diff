@@ -23,6 +23,7 @@ def main(argv=None):
     parser.add_argument('-k', '--keys-only', action='store_true', help='compare only the keys, ignore the differences in values')
     parser.add_argument('-K', '--keep-unchanged-values', action='store_true', help='instead of omitting values that are equal, output them as they are')
     parser.add_argument('-p', '--precision', metavar='DECIMALS', type=int, help='round all floating point numbers to this number of decimal places prior to comparison')
+    parser.add_argument('-w', '--indent-width', default=None, type=int, help='number of spaces for indendation')
 
     sys_args = argv if argv is not None else sys.argv[:]
     args = parser.parse_args()
