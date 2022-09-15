@@ -20,6 +20,7 @@ def main(argv=None):
     parser.add_argument('-o', '--output-keys', metavar='KEY', nargs='+', help='always print this comma separated keys, with their value, if they are part of an object with any diff')
     parser.add_argument('-n', '--output-new-only', action='store_true', help='output only the updated and new key/value pairs (without marking them as such). If you need only the diffs from the old file, just exchange the first and second json')
     parser.add_argument('-s', '--sort', action='store_true', help='sort primitive values in arrays before comparing')
+    parser.add_argument('-c', '--object-context', action='store_true', help='if a scalar value of an object key is changed, also include other (unchanged) values of that object')
     parser.add_argument('-k', '--keys-only', action='store_true', help='compare only the keys, ignore the differences in values')
     parser.add_argument('-K', '--keep-unchanged-values', action='store_true', help='instead of omitting values that are equal, output them as they are')
     parser.add_argument('-p', '--precision', metavar='DECIMALS', type=int, help='round all floating point numbers to this number of decimal places prior to comparison')

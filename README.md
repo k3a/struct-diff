@@ -154,7 +154,7 @@ Detailed:
 ```txt
 % python3 -m struct_diff -h
 
-usage: struct_diff [-h] [-C] [--no-color] [-j] [-Y] [-f] [--max-elisions MAX_ELISIONS] [-o KEY [KEY ...]] [-n] [-s] [-k] [-K] [-p DECIMALS] old new
+usage: struct_diff [-h] [-C] [--no-color] [-j] [-Y] [-f] [--max-elisions MAX_ELISIONS] [-o KEY [KEY ...]] [-n] [-s] [-c] [-k] [-K] [-p DECIMALS] [-w INDENT_WIDTH] old new
 
 positional arguments:
   old                   original file
@@ -174,11 +174,14 @@ optional arguments:
   -n, --output-new-only
                         output only the updated and new key/value pairs (without marking them as such). If you need only the diffs from the old file, just exchange the first and second json
   -s, --sort            sort primitive values in arrays before comparing
+  -c, --object-context  if a scalar value of an object key is changed, also include other (unchanged) values of that object
   -k, --keys-only       compare only the keys, ignore the differences in values
   -K, --keep-unchanged-values
                         instead of omitting values that are equal, output them as they are
   -p DECIMALS, --precision DECIMALS
                         round all floating point numbers to this number of decimal places prior to comparison
+  -w INDENT_WIDTH, --indent-width INDENT_WIDTH
+                        number of spaces for indendation
 ```
 
 ## Things to do
@@ -193,6 +196,7 @@ You are welcome to implement stuff from `Things to do` or more and submit pull r
 
 ## Change Log
 
+- 0.9.0-3 Added object-context option to include unchanged values in an object with a changed scalar value
 - 0.9.0-2 Multi-line unified diff for strings in YAML mode
 - 0.9.0-1 Implements mixed sorting (numerical sort first, alphanumerical string sort next)
 - 0.9.0 The first complete port of json-diff JS library with all the functionality

@@ -46,6 +46,7 @@ class Comparator(object):
                 score -= 30
                 equal = False
 
+        scalars_changed = False
         for key, value1 in obj1.items():
             if key in obj2:
                 score += 20
@@ -54,9 +55,18 @@ class Comparator(object):
                 if not change['equal']:
                     result[key] = change['result']
                     equal = False
+                    if self.__is_scalar(value2):
+                        scalars_changed = True
                 elif self._get_opt('full') or key in self._get_opt('output_keys', []):
                     result[key] = value1
                     score += min(20, max(-10, change['score'] / 5)) # BATMAN!
+
+        # include sigling keys of an object with diffs
+        if scalars_changed and self._get_opt('object_context'):
+            for key, value1 in obj1.items():
+                if key not in result:
+                    result[key] = value1
+                    score += min(20, max(-10, change['score'] / 5)) # DOUBLE BATMAN!
 
         if equal:
             score = 100 * max(len(obj1), 0.5)
