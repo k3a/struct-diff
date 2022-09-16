@@ -1,5 +1,5 @@
-import json
 import difflib
+import re
 from typing import Any
 
 from ..comparator import OP
@@ -7,6 +7,8 @@ from .base import BaseFormatter, Part
 
 class YAMLFormatter(BaseFormatter):
     def __init__(self, diff = None, opts = None):
+        # https://yaml.org/spec/1.2.2/#plain-style
+        self.re_unsafe_str = re.compile(r'^([,\[\]{}#&*!|>\'"%@`\s]|[-?:]\s)')
         super().__init__(diff, opts)
 
     def _text_diff(self, prev_val: str, cur_val: str, indent_str: str, depth: int) -> list[str]:
@@ -24,6 +26,18 @@ class YAMLFormatter(BaseFormatter):
                 if len(l) > 0:
                     d[n] = l[0] + indent_str*depth + l[1:]
         return d[:-1]
+
+    def _format_scalar(self, val: Any) -> str:
+        if isinstance(val, int):
+            return str(val)
+        elif isinstance(val, float):
+            prec = self._get_opt('precision', None)
+            return str(round(val, prec)) if prec is not None else str(val)
+        else:
+            s = str(val)
+            if self.re_unsafe_str.match(s):
+                s = "'" + s + "'"
+            return s
 
     def _output(self, context: dict, op: str, part: str, key: str, value: Any, depth: int):
         if op == OP.MODIFY:
@@ -88,7 +102,7 @@ class YAMLFormatter(BaseFormatter):
                 return
 
             #print(f"op {op} part {part} key {key} value {value} depth {depth}")
-            output(op, indent + prefix + json.dumps(value))
+            output(op, indent + prefix + self._format_scalar(value))
 
         context['stack'] = stack
         context['key_in_current_stack_object'] = key_in_current_stack_object
