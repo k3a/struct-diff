@@ -39,34 +39,7 @@ It produces diff like this:
       4
     ]
   ],
-  "image": {
-    "caption": {
-      "width": {
-        "__old": 123,
-        "__new": 321
-      },
-      "height": {
-        "__old": 321,
-        "__new": {
-          "value": 642,
-          "units": "mm"
-        }
-      }
-    }
-  },
-  "thumbnail": {
-    "extra__added": {
-      "price": 111,
-      "sizes": [
-        "L",
-        "XL"
-      ]
-    },
-    "width": {
-      "__old": 32,
-      "__new": 64
-    }
-  }
+  ... shortened ...
 }
 ```
 
@@ -186,7 +159,6 @@ optional arguments:
 
 ## Things to do
 
-- prepare and release PyPI package
 - add unit tests
 
 ## Contributing
@@ -196,6 +168,7 @@ You are welcome to implement stuff from `Things to do` or more and submit pull r
 
 ## Change Log
 
+- 0.9.0-4 First PyPI release
 - 0.9.0-3 Added object-context option to include unchanged values in an object with a changed scalar value
 - 0.9.0-2 Multi-line unified diff for strings in YAML mode
 - 0.9.0-1 Implements mixed sorting (numerical sort first, alphanumerical string sort next)
@@ -203,6 +176,6 @@ You are welcome to implement stuff from `Things to do` or more and submit pull r
 
 ## Credits
 
-- [json-diff](https://github.com/andreyvit/json-diff)
+- [json-diff](https://github.com/andreyvit/json-diff) - the original javascript implementation
 
 Released under the MIT license.

@@ -6,6 +6,8 @@ setup(
     name='struct-diff',
     version=version_string,
     description='Structural comparison of two objects.',
+    long_description=open('README.md', 'r').read(),
+    long_description_content_type='text/markdown',
     url='https://github.com/k3a/struct_diff',
     author='K3A',
     license='MIT',
