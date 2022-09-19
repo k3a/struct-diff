@@ -179,7 +179,7 @@ You are welcome to implement stuff from `Things to do` or more and submit pull r
 
 ## Change Log
 
-- 0.9.0-4 First PyPI release
+- 0.9.0-4,5,6 PyPI releases with bugfixes
 - 0.9.0-3 Added object-context option to include unchanged values in an object with a changed scalar value
 - 0.9.0-2 Multi-line unified diff for strings in YAML mode
 - 0.9.0-1 Implements mixed sorting (numerical sort first, alphanumerical string sort next)
