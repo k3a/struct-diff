@@ -116,7 +116,7 @@ or structural YAML diff:
 +    width: 64
 ```
 
-## Usage
+## CLI Usage
 
 Simple:
 
@@ -155,6 +155,17 @@ optional arguments:
                         round all floating point numbers to this number of decimal places prior to comparison
   -w INDENT_WIDTH, --indent-width INDENT_WIDTH
                         number of spaces for indendation
+```
+
+## Library Usage
+
+```py
+>>> from struct_diff import Comparator, YAMLFormatter
+>>> d = diff({'a':'first'}, {'b': 'second'})
+>>> f = YAMLFormatter(d, {'max_elisions': 1})
+>>> print(f)
+- a: first
++ b: second
 ```
 
 ## Things to do
