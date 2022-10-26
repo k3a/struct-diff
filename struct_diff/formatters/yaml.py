@@ -25,7 +25,7 @@ class YAMLFormatter(BaseFormatter):
                 l = d[n]
                 if len(l) > 0:
                     d[n] = l[0] + indent_str*depth + l[1:]
-        return d[:-1]
+        return d
 
     def _format_scalar(self, val: Any) -> str:
         if isinstance(val, int):
